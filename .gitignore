@@ -4,3 +4,9 @@ build/
 .vscode/
 docs-data.yml
 .idea
+settings.local.yml
+__pycache__/
+.pytest_cache/
+.venv/
+claudia.md
+

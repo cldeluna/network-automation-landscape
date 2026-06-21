@@ -1,0 +1,33 @@
+# Sidecar extended data owned by the FastAPI layer.
+# See CLAUDE.md for the full schema.
+
+# Map of tool slug -> list of voluntary contacts.
+# Example:
+# contacts:
+#   netbox-community:
+#     - name: Jane Doe
+#       role: maintainer
+#       github: janedoe
+#       voluntary: true
+contacts: {}
+
+# Flat list of use cases.
+# Example:
+# use_cases:
+#   - id: UC-001
+#     title: ...
+#     description: ...
+#     tools: [Netbox Community, Nornir]
+#     naf_components: [intent, executor]
+#     actor: Network Engineer
+use_cases: []
+
+# Map of tool slug -> formal NAF mapping override.
+# When absent, naf_component is inferred from data.yml extra.tag.
+# Example:
+# naf_mappings:
+#   netbox-community:
+#     naf_component: intent
+#     naf_subfunctions: [Intended State / SoT]
+#     secondary_naf_components: []
+naf_mappings: {}
