@@ -3,15 +3,22 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.loader import build_tools_index, load_extended_data
+from api.mcp_server import mcp
 from api.routers import categories, naf, tools, use_cases
+from api.service import get_store
+
+# MCP served over Streamable HTTP. Inner path is "/"; we mount it at /mcp
+# below, so the public endpoint is /mcp.
+mcp_app = mcp.http_app(path="/")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.tools = build_tools_index()
-    app.state.extended = load_extended_data()
-    yield
+    # Warm the shared store, then run the MCP session-manager lifespan so the
+    # mounted MCP app works. Both surfaces read this one in-memory copy.
+    app.state.store = get_store()
+    async with mcp_app.lifespan(app):
+        yield
 
 
 app = FastAPI(
@@ -39,3 +46,6 @@ app.include_router(tools.router, prefix="/api/v1")
 app.include_router(naf.router, prefix="/api/v1")
 app.include_router(use_cases.router, prefix="/api/v1")
 app.include_router(categories.router, prefix="/api/v1")
+
+# REST lives under /api/v1; MCP (Streamable HTTP) is mounted at /mcp.
+app.mount("/mcp", mcp_app)

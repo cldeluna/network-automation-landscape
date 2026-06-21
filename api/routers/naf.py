@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 
+from api import service
 from api.models import NAF_TAXONOMY, Tool
 
 router = APIRouter(tags=["naf"])
@@ -16,4 +17,4 @@ def tools_for_component(component: str, request: Request) -> list[Tool]:
         raise HTTPException(
             status_code=404, detail=f"Unknown NAF component '{component}'"
         )
-    return [t for t in request.app.state.tools.values() if component in t.tags]
+    return service.tools_for_naf(request.app.state.store, component)

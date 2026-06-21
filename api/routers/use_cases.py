@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 
+from api import service
 from api.models import UseCase
 
 router = APIRouter(tags=["use_cases"])
@@ -11,19 +12,14 @@ def list_use_cases(
     tool: str | None = None,
     naf_component: str | None = None,
 ) -> list[UseCase]:
-    raw = request.app.state.extended.get("use_cases", [])
-    use_cases = [UseCase(**uc) for uc in raw]
-    if tool:
-        use_cases = [uc for uc in use_cases if tool in uc.tools]
-    if naf_component:
-        use_cases = [uc for uc in use_cases if naf_component in uc.naf_components]
-    return use_cases
+    return service.list_use_cases(
+        request.app.state.store, tool=tool, naf_component=naf_component
+    )
 
 
 @router.get("/use_cases/{id}", response_model=UseCase)
 def get_use_case(id: str, request: Request) -> UseCase:
-    raw = request.app.state.extended.get("use_cases", [])
-    for uc in raw:
-        if uc.get("id") == id:
-            return UseCase(**uc)
-    raise HTTPException(status_code=404, detail=f"Use case '{id}' not found")
+    uc = service.get_use_case(request.app.state.store, id)
+    if uc is None:
+        raise HTTPException(status_code=404, detail=f"Use case '{id}' not found")
+    return uc
