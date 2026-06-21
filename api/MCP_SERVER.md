@@ -144,8 +144,8 @@ npx @modelcontextprotocol/inspector
 # local
 claude mcp add --transport http nal http://127.0.0.1:8001/mcp
 
-# deployed
-claude mcp add --transport http nal https://nal-api.onrender.com/mcp
+# deployed (this branch deploys as the nal-api-mcp service)
+claude mcp add --transport http nal https://nal-api-mcp.onrender.com/mcp
 ```
 
 ### Tests
