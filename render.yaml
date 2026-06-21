@@ -1,0 +1,13 @@
+# Render Blueprint for the FastAPI service.
+# Deploy: push this file, then Render dashboard -> New -> Blueprint -> pick this repo.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: nal-api
+    runtime: python
+    plan: free
+    branch: feature/fastapi-phase-1
+    buildCommand: "pip install uv && uv sync --frozen"
+    startCommand: "uv run uvicorn api.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/v1/health
+    autoDeploy: true

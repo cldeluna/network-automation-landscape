@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.loader import build_tools_index, load_extended_data
 from api.routers import categories, naf, tools, use_cases
@@ -17,6 +18,15 @@ app = FastAPI(
     title="Network Automation Landscape API",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Wide-open CORS for public testing. Lock this down to specific origins
+# before this is anything more than a throwaway test deployment.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
