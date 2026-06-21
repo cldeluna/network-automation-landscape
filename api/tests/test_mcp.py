@@ -25,9 +25,15 @@ async def test_tools_registered(mcp_client):
         "get_tool",
         "tools_by_naf_component",
         "naf_taxonomy",
-        "list_use_cases",
+        "use_cases_link",
         "list_categories",
     }.issubset(names)
+
+
+async def test_use_cases_link(mcp_client):
+    body = _unwrap(await mcp_client.call_tool("use_cases_link", {}))
+    assert body["source"] == "external"
+    assert "configured" in body
 
 
 async def test_search_tools_filter(mcp_client):

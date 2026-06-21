@@ -54,10 +54,30 @@ def test_naf_component_unknown_404(client):
     assert r.status_code == 404
 
 
-def test_use_cases_empty_by_default(client):
+def test_use_cases_link_unconfigured(client):
+    # Use cases live in an external system; with no base URL configured the
+    # endpoint reports configured=false and a null link.
     r = client.get("/api/v1/use_cases")
     assert r.status_code == 200
-    assert r.json() == []
+    body = r.json()
+    assert body["source"] == "external"
+    assert body["configured"] is False
+    assert body["use_cases_url"] is None
+
+
+def test_tool_use_cases_link(client):
+    r = client.get("/api/v1/tools")
+    slug = r.json()[0]["slug"]
+    r = client.get(f"/api/v1/tools/{slug}/use_cases")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "external"
+    assert "tool" in body
+
+
+def test_tool_use_cases_link_404(client):
+    r = client.get("/api/v1/tools/does-not-exist/use_cases")
+    assert r.status_code == 404
 
 
 def test_categories(client):

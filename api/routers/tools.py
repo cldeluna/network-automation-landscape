@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 
 from api import service
-from api.models import Contact, Tool, UseCase
+from api.models import Contact, Tool, UseCaseLink
 
 router = APIRouter(tags=["tools"])
 
@@ -39,10 +39,11 @@ def list_contacts(slug: str, request: Request) -> list[Contact]:
     return service.tool_contacts(store, slug)
 
 
-@router.get("/tools/{slug}/use_cases", response_model=list[UseCase])
-def list_tool_use_cases(slug: str, request: Request) -> list[UseCase]:
+@router.get("/tools/{slug}/use_cases", response_model=UseCaseLink)
+def tool_use_cases(slug: str, request: Request) -> UseCaseLink:
+    """Link out to the external Use Case system, filtered by this tool."""
     store = request.app.state.store
     tool = service.get_tool(store, slug)
     if tool is None:
         raise HTTPException(status_code=404, detail=f"Tool '{slug}' not found")
-    return service.tool_use_cases(store, tool)
+    return service.tool_use_cases_link(store, tool)

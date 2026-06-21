@@ -10,13 +10,15 @@ queries always return a list. State is held in a cached ``Store`` so a single
 process serves both surfaces from one in-memory copy of the data.
 """
 
+import os
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote, urlencode
 
 import yaml
 
 from api.loader import build_tools_index, load_extended_data, load_landscape
-from api.models import Contact, Tool, UseCase
+from api.models import Contact, Tool, UseCaseLink
 
 SETTINGS_YML = Path(__file__).resolve().parent.parent / "settings.yml"
 
@@ -72,11 +74,6 @@ def tool_contacts(store: Store, slug: str) -> list[Contact]:
     return [Contact(**c) for c in raw]
 
 
-def tool_use_cases(store: Store, tool: Tool) -> list[UseCase]:
-    raw = store.extended.get("use_cases", [])
-    return [UseCase(**uc) for uc in raw if tool.name in uc.get("tools", [])]
-
-
 # --- naf -------------------------------------------------------------------
 
 
@@ -84,27 +81,77 @@ def tools_for_naf(store: Store, component: str) -> list[Tool]:
     return [t for t in store.tools.values() if component in t.tags]
 
 
-# --- use cases -------------------------------------------------------------
+# --- use cases (reference-only: link out to the external Use Case system) ---
 
 
-def list_use_cases(
+def use_case_system_base_url(store: Store) -> str | None:
+    """Base URL of the external Use Case system, or None if not configured.
+
+    Env var ``UC_SYSTEM_URL`` overrides the sidecar
+    ``use_case_system.base_url`` so it can be set per deployment.
+    """
+    env = os.environ.get("UC_SYSTEM_URL")
+    if env:
+        return env.rstrip("/")
+    cfg = (store.extended.get("use_case_system") or {}).get("base_url")
+    return cfg.rstrip("/") if cfg else None
+
+
+def _link(
+    store: Store,
+    *,
+    tool: str | None = None,
+    naf_component: str | None = None,
+    id: str | None = None,
+) -> UseCaseLink:
+    base = use_case_system_base_url(store)
+    use_cases_url = None
+    if base:
+        if id is not None:
+            use_cases_url = f"{base}/use-cases/{quote(id, safe='')}"
+        else:
+            params = {}
+            if tool:
+                params["tool"] = tool
+            if naf_component:
+                params["naf_component"] = naf_component
+            use_cases_url = f"{base}/use-cases"
+            if params:
+                use_cases_url += "?" + urlencode(params)
+
+    if base:
+        note = "Use cases are hosted in a separate Use Case system; follow use_cases_url."
+    else:
+        note = (
+            "Use cases are hosted in a separate Use Case system that is not yet "
+            "configured. Set use_case_system.base_url (or the UC_SYSTEM_URL env "
+            "var) to enable deep links."
+        )
+
+    return UseCaseLink(
+        configured=base is not None,
+        system_url=base,
+        use_cases_url=use_cases_url,
+        tool=tool,
+        id=id,
+        note=note,
+    )
+
+
+def use_cases_link(
     store: Store,
     tool: str | None = None,
     naf_component: str | None = None,
-) -> list[UseCase]:
-    use_cases = [UseCase(**uc) for uc in store.extended.get("use_cases", [])]
-    if tool:
-        use_cases = [uc for uc in use_cases if tool in uc.tools]
-    if naf_component:
-        use_cases = [uc for uc in use_cases if naf_component in uc.naf_components]
-    return use_cases
+) -> UseCaseLink:
+    return _link(store, tool=tool, naf_component=naf_component)
 
 
-def get_use_case(store: Store, id: str) -> UseCase | None:
-    for uc in store.extended.get("use_cases", []):
-        if uc.get("id") == id:
-            return UseCase(**uc)
-    return None
+def use_case_link(store: Store, id: str) -> UseCaseLink:
+    return _link(store, id=id)
+
+
+def tool_use_cases_link(store: Store, tool: Tool) -> UseCaseLink:
+    return _link(store, tool=tool.name)
 
 
 # --- categories ------------------------------------------------------------

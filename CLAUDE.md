@@ -87,7 +87,6 @@ These fields do not exist in the upstream landscape data. They live in a sidecar
 | Field | Type | Description |
 |-------|------|-------------|
 | `contacts` | list of Contact | Voluntary community contacts for the tool |
-| `use_cases` | list of UseCase ref | Use cases (by ID) that reference this tool |
 | `naf_component` | enum (7 values) | Formal NAF classification (primary) |
 | `naf_subfunctions` | list of str | NAF sub-functions within the primary component |
 | `secondary_naf_components` | list of str | Secondary NAF placements (many tools span blocks) |
@@ -102,16 +101,30 @@ class Contact(BaseModel):
     voluntary: bool = True           # all contacts are opt-in
 ```
 
-**UseCase schema:**
+**Use cases are external (reference-only).** Use cases are **not** stored in this
+landscape. They live in a separate Use Case "system"/database (its own
+service/API). The landscape only **links out** to it; it does not own use-case
+content or the tool→use-case mapping (that lives in the Use Case system).
+
+The Use Case system's base URL is configured via `use_case_system.base_url` in
+the sidecar (`api/data/extended_data.yml`), or the `UC_SYSTEM_URL` env var (env
+wins). When unset, the use-case endpoints return `configured: false` with null
+URLs. The endpoints return a `UseCaseLink` reference, not content:
+
 ```python
-class UseCase(BaseModel):
-    id: str                          # e.g. "UC-001"
-    title: str
-    description: str
-    tools: list[str]                 # list of tool names from data.yml
-    naf_components: list[str]        # NAF components exercised
-    actor: str                       # primary actor, e.g. "Network Engineer"
+class UseCaseLink(BaseModel):
+    source: str = "external"
+    configured: bool                 # True once a base URL is set
+    system_url: str | None = None    # base URL of the Use Case system
+    use_cases_url: str | None = None # deep link (filtered by tool / id when given)
+    tool: str | None = None
+    id: str | None = None
+    note: str
 ```
+
+> Status: the Use Case system is not built yet. This is the forward-compatible
+> reference design — flipping to embedded content later (proxy/federate) is a
+> non-breaking upgrade behind the same endpoints.
 
 ## FastAPI endpoints (Phase 1 — read-only)
 
@@ -122,12 +135,12 @@ All endpoints are under `/api/v1/`. Responses are JSON.
 | GET | `/tools` | List all tools. Query params: `naf_component`, `naf_subfunction`, `category`, `project` (maturity), `q` (free-text search across name/description/tags) |
 | GET | `/tools/{name}` | Single tool record by name (slug or exact match) |
 | GET | `/tools/{name}/contacts` | Voluntary contacts for a tool |
-| GET | `/tools/{name}/use_cases` | Use cases that reference this tool |
+| GET | `/tools/{name}/use_cases` | Link out to the external Use Case system, filtered by this tool |
 | GET | `/naf` | Full NAF taxonomy (components + sub-functions) |
 | GET | `/naf/{component}` | All tools tagged to a NAF component |
 | GET | `/categories` | Landscape categories and subcategories (mirrors `settings.yml`) |
-| GET | `/use_cases` | All use cases. Query param: `tool`, `naf_component` |
-| GET | `/use_cases/{id}` | Single use case by ID |
+| GET | `/use_cases` | Link to the external Use Case system. Query param: `tool`, `naf_component` (forwarded into the deep link) |
+| GET | `/use_cases/{id}` | Deep link to a single use case in the external system |
 | GET | `/health` | Health check |
 
 **Phase 2 additions** (CRUD, authenticated):
@@ -138,12 +151,13 @@ All endpoints are under `/api/v1/`. Responses are JSON.
 | PATCH | `/tools/{name}` | Update a tool |
 | DELETE | `/tools/{name}` | Soft-delete a tool |
 | POST | `/tools/{name}/contacts` | Add a contact |
-| POST | `/use_cases` | Add a use case |
+
+(Use cases are not created here — they are owned by the external Use Case system.)
 
 ## Key design decisions
 
 - **`data.yml` is read-only from the API's perspective in Phase 1.** The API reads it;
-  it does not write back. Extended data (contacts, use cases, formal NAF mapping) lives
+  it does not write back. Extended data (contacts, formal NAF mapping) lives
   in a sidecar file the API owns.
 - **Tool identity key is `name` from `data.yml`.** Use a normalized slug (lowercase,
   spaces → hyphens) for URL paths. Keep the original `name` for display.
@@ -152,8 +166,12 @@ All endpoints are under `/api/v1/`. Responses are JSON.
   tag is `naf_component` (primary) and the rest are `secondary_naf_components`.
 - **Contacts are voluntary and opt-in.** Never infer contacts from repo metadata.
   The contact list starts empty and is populated only through explicit submissions.
-- **Use cases reference tools by name**, not by a foreign key, so they survive tool
-  renames gracefully.
+- **Use cases live in a separate Use Case system, not in the landscape.** The API
+  is reference-only: it links out to that system (deep links filtered by tool/id),
+  and never stores use-case content or the tool→use-case mapping. The system's
+  base URL is configured via `use_case_system.base_url` or the `UC_SYSTEM_URL`
+  env var. Filters/links use the tool **name** (not a foreign key) so they
+  survive tool renames gracefully.
 
 ## Differences from the upstream repo
 
@@ -162,7 +180,7 @@ All endpoints are under `/api/v1/`. Responses are JSON.
 | API | None (static site) | FastAPI service under `api/` |
 | NAF mapping | Loose `extra.tag` strings | Formal enum + sub-functions |
 | Contacts | Not present | Sidecar extended data |
-| Use cases | Not present | Sidecar + API endpoints |
+| Use cases | Not present | Reference-only: link out to an external Use Case system |
 | Data store | `data.yml` only | Phase 1: YAML; Phase 2: Dolt |
 
 ## Suggested repo layout for the API addition
@@ -170,13 +188,13 @@ All endpoints are under `/api/v1/`. Responses are JSON.
 ```
 api/
   main.py              # FastAPI app, lifespan loads data.yml + extended_data.yml
-  models.py            # Pydantic models (Tool, Contact, UseCase, NAFComponent)
+  models.py            # Pydantic models (Tool, Contact, UseCaseLink, NAFComponent)
   routers/
     tools.py
     naf.py
     use_cases.py
   data/
-    extended_data.yml  # contacts, use_cases, formal NAF mappings (sidecar)
+    extended_data.yml  # contacts, use_case_system base URL, formal NAF mappings (sidecar)
   tests/
     test_tools.py
     test_naf.py

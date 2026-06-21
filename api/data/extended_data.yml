@@ -11,16 +11,12 @@
 #       voluntary: true
 contacts: {}
 
-# Flat list of use cases.
-# Example:
-# use_cases:
-#   - id: UC-001
-#     title: ...
-#     description: ...
-#     tools: [Netbox Community, Nornir]
-#     naf_components: [intent, executor]
-#     actor: Network Engineer
-use_cases: []
+# Use cases are NOT stored here. They live in a separate Use Case system
+# (its own service/database). The landscape only links out to it. Set the
+# system's base URL below once it exists, or via the UC_SYSTEM_URL env var
+# (the env var wins). Until set, use-case endpoints return configured: false.
+use_case_system:
+  base_url: null
 
 # Map of tool slug -> formal NAF mapping override.
 # When absent, naf_component is inferred from data.yml extra.tag.

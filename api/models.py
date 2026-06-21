@@ -39,13 +39,22 @@ class Contact(BaseModel):
     voluntary: bool = True
 
 
-class UseCase(BaseModel):
-    id: str
-    title: str
-    description: str
-    tools: list[str]
-    naf_components: list[str]
-    actor: str
+class UseCaseLink(BaseModel):
+    """A pointer into the external Use Case system.
+
+    The landscape does not store use-case content or the tool->use-case mapping;
+    that lives in a separate Use Case system. These endpoints return a link out
+    to it. When the system's base URL is not configured, ``configured`` is False
+    and the URL fields are null.
+    """
+
+    source: str = "external"
+    configured: bool
+    system_url: str | None = None
+    use_cases_url: str | None = None
+    tool: str | None = None
+    id: str | None = None
+    note: str
 
 
 class Tool(BaseModel):

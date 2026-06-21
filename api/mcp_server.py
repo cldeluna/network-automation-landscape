@@ -79,19 +79,23 @@ def naf_taxonomy() -> dict[str, list[str]]:
 
 
 @mcp.tool
-def list_use_cases(
+def use_cases_link(
     tool: str | None = None, naf_component: str | None = None
-) -> list[dict]:
-    """List network automation use cases, optionally filtered.
+) -> dict:
+    """Get a link to network automation use cases.
+
+    Use cases are NOT stored in this landscape — they live in a separate Use
+    Case system. This returns a link out to that system (optionally filtered by
+    tool name or NAF component). If `configured` is false, the system's URL has
+    not been set yet and `use_cases_url` will be null.
 
     Args:
-        tool: Only use cases that reference this tool name (exact name, not slug).
-        naf_component: Only use cases exercising this NAF component.
+        tool: Filter the linked view to a tool name (exact name, not slug).
+        naf_component: Filter the linked view to a NAF component.
     """
-    use_cases = service.list_use_cases(
+    return service.use_cases_link(
         service.get_store(), tool=tool, naf_component=naf_component
-    )
-    return [uc.model_dump() for uc in use_cases]
+    ).model_dump()
 
 
 @mcp.tool

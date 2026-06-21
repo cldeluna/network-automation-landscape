@@ -16,7 +16,7 @@ duplicating logic. The design is **one shared query core + two thin adapters**:
 api/
   loader.py        # parse data.yml + sidecar extended_data.yml, build indexes
   service.py       # SHARED query core — pure, HTTP-agnostic functions
-  models.py        # Pydantic types (Tool, Contact, UseCase) + NAF taxonomy
+  models.py        # Pydantic types (Tool, Contact, UseCaseLink) + NAF taxonomy
   routers/*        # REST adapter   -> calls service.*   (mounted at /api/v1)
   mcp_server.py    # MCP adapter    -> calls service.*   (mounted at /mcp)
   main.py          # FastAPI app: REST routers + mounted MCP app + lifespans
@@ -52,11 +52,33 @@ All tools are defined in `api/mcp_server.py` and back onto `api/service.py`.
 | `get_tool` | `slug` (e.g. `netbox-community`) | One tool record, or `{"error": ...}` if not found |
 | `tools_by_naf_component` | `component` (one of the 7 NAF components) | All tools tagged to that component |
 | `naf_taxonomy` | — | The 7 NAF components mapped to their sub-functions |
-| `list_use_cases` | `tool?`, `naf_component?` | Use cases (from the sidecar; empty until populated) |
+| `use_cases_link` | `tool?`, `naf_component?` | A **link** to the external Use Case system (see below) |
 | `list_categories` | — | Landscape categories + subcategories, in display order |
 
 Valid `naf_component` values: `presentation`, `observability`, `orchestration`,
 `intent`, `collector`, `executor`, `network_infrastructure`.
+
+#### Use cases are external
+
+Use cases are **not** stored in this landscape — they live in a separate Use
+Case system (its own service/database). The landscape only links out to it, so
+`use_cases_link` (and the `/use_cases` REST endpoints) return a reference, not
+content:
+
+```json
+{
+  "source": "external",
+  "configured": false,
+  "system_url": null,
+  "use_cases_url": null,
+  "note": "Use cases are hosted in a separate Use Case system that is not yet configured. ..."
+}
+```
+
+Set the system's base URL via `use_case_system.base_url` in
+`api/data/extended_data.yml`, or the `UC_SYSTEM_URL` env var (the env var wins).
+Once set, `configured` becomes `true` and `use_cases_url` is a deep link, e.g.
+`https://<base>/use-cases?tool=Nautobot`.
 
 ### Relationship to the REST endpoints
 
@@ -68,13 +90,12 @@ The MCP tools mirror the REST API (both over `api/service.py`):
 | `get_tool` | `GET /api/v1/tools/{slug}` |
 | `tools_by_naf_component` | `GET /api/v1/naf/{component}` |
 | `naf_taxonomy` | `GET /api/v1/naf` |
-| `list_use_cases` | `GET /api/v1/use_cases` (`tool`, `naf_component`) |
+| `use_cases_link` | `GET /api/v1/use_cases` (`tool`, `naf_component`) |
 | `list_categories` | `GET /api/v1/categories` |
 
-> Note: the per-tool contact and use-case REST endpoints
-> (`/api/v1/tools/{slug}/contacts`, `/api/v1/tools/{slug}/use_cases`) are not yet
-> exposed as dedicated MCP tools. Add them to `mcp_server.py` if an agent needs
-> them.
+> Note: the per-tool contact endpoint (`/api/v1/tools/{slug}/contacts`) and the
+> per-tool use-case link (`/api/v1/tools/{slug}/use_cases`) are not yet exposed
+> as dedicated MCP tools. Add them to `mcp_server.py` if an agent needs them.
 
 ---
 
