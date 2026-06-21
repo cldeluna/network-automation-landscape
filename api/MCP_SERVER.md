@@ -200,5 +200,24 @@ at `main` and retire the duplicate.
   surface — same as the REST API. Fine for testing; lock down before real use.
 - **Cold starts.** Render's free plan spins down after ~15 min idle; the first
   request (REST or MCP) after that incurs a ~30s cold start.
+- **Free-tier limits.** Deploying this branch alongside the REST-only `nal-api`
+  means two free web services. Render allows this, but free instance-hours are
+  shared across your account.
+- **Auto-deploy.** `autoDeploy: true` is set, so every push to
+  `feature/mcp-server` redeploys `nal-api-mcp` automatically.
+- **Data refresh.** `data.yml` is read once at startup. After editing it, trigger
+  a manual redeploy (or push) — a running instance won't pick up data changes on
+  its own.
 - **Stateless HTTP.** The server runs in the default Streamable HTTP mode. If you
   later move to a multi-instance Render plan, revisit MCP session handling.
+
+### Branch / PR workflow
+
+`feature/mcp-server` is built on top of `feature/fastapi-phase-1`, so it
+**contains all of the REST commits** plus the MCP work. When opening PRs against
+`main`:
+
+1. Merge the **REST PR** (`feature/fastapi-phase-1`) first.
+2. The **MCP PR** (`feature/mcp-server`) then shows only the MCP-specific diff.
+3. If you squash/rebase the REST PR, rebase `feature/mcp-server` onto the updated
+   `main` afterward so its history stays clean.
