@@ -32,6 +32,7 @@ def load_extended_data() -> dict[str, Any]:
 
 def build_tools_index() -> dict[str, Tool]:
     landscape = load_landscape()
+    naf_mappings = load_extended_data().get("naf_mappings") or {}
     index: dict[str, Tool] = {}
     for cat in landscape.get("categories", []):
         cat_name = cat["name"]
@@ -44,6 +45,15 @@ def build_tools_index() -> dict[str, Tool]:
                 tags = extra.get("tag") or []
                 if isinstance(tags, str):
                     tags = [tags]
+                # Derive the formal NAF mapping from tags: first tag is the
+                # primary component, any remaining tags are secondary. A sidecar
+                # naf_mappings entry overrides whichever keys it specifies.
+                override = naf_mappings.get(slug) or {}
+                naf_component = override.get(
+                    "naf_component", tags[0] if tags else None
+                )
+                secondary = override.get("secondary_naf_components", tags[1:])
+                naf_subfunctions = override.get("naf_subfunctions", [])
                 index[slug] = Tool(
                     name=name,
                     slug=slug,
@@ -55,5 +65,8 @@ def build_tools_index() -> dict[str, Tool]:
                     project=item.get("project"),
                     logo=item.get("logo"),
                     tags=tags,
+                    naf_component=naf_component,
+                    naf_subfunctions=naf_subfunctions,
+                    secondary_naf_components=secondary,
                 )
     return index

@@ -26,4 +26,9 @@ use_case_system:
 #     naf_component: intent
 #     naf_subfunctions: [Intended State / SoT]
 #     secondary_naf_components: []
-naf_mappings: {}
+naf_mappings:
+  # SuzieQ is primarily Observability (from data.yml tag); its multivendor
+  # pollers also do Read Ops + Data Normalization, so Collector is recorded
+  # as a secondary NAF component.
+  suzieq:
+    secondary_naf_components: [collector]

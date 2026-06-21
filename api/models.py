@@ -68,3 +68,9 @@ class Tool(BaseModel):
     project: str | None = None
     logo: str | None = None
     tags: list[str] = []
+    # Formal NAF classification. Derived from ``tags`` (first tag = primary,
+    # the rest = secondary), with per-tool overrides from the sidecar
+    # ``naf_mappings`` in extended_data.yml.
+    naf_component: str | None = None
+    naf_subfunctions: list[str] = []
+    secondary_naf_components: list[str] = []
