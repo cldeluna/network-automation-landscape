@@ -3,10 +3,10 @@
 # Docs: https://render.com/docs/blueprint-spec
 services:
   # This branch's app serves BOTH the REST API and the MCP server (mounted at
-  # /mcp) from one process. Distinct name + branch so it deploys independently
-  # of the REST-only `nal-api` service that tracks feature/fastapi-phase-1.
+  # /mcp) from one process. The `nal-api` service is pointed at this branch, so
+  # one URL (nal-api.onrender.com) covers REST and MCP.
   - type: web
-    name: nal-api-mcp
+    name: nal-api
     runtime: python
     plan: free
     branch: feature/mcp-server

@@ -144,8 +144,8 @@ npx @modelcontextprotocol/inspector
 # local
 claude mcp add --transport http nal http://127.0.0.1:8001/mcp
 
-# deployed (this branch deploys as the nal-api-mcp service)
-claude mcp add --transport http nal https://nal-api-mcp.onrender.com/mcp
+# deployed
+claude mcp add --transport http nal https://nal-api.onrender.com/mcp
 ```
 
 ### Tests
@@ -168,31 +168,23 @@ command is unchanged:
 startCommand: "uv run uvicorn api.main:app --host 0.0.0.0 --port $PORT"
 ```
 
-### Branch / service layout
+### Current deployment
 
-| Branch | Render service (`render.yaml`) | Serves |
-|--------|--------------------------------|--------|
-| `feature/fastapi-phase-1` | `nal-api` | REST only (kept REST-only for its PR) |
-| `feature/mcp-server` | `nal-api-mcp` | REST **and** MCP (`/mcp`) |
+The Render service **`nal-api`** is pointed at this branch (`feature/mcp-server`)
+and serves **both** surfaces from one process:
 
-The two `render.yaml` files use **distinct service names** so the MCP deployment
-never clobbers the REST-only service.
+- REST → `https://nal-api.onrender.com/api/v1/...`
+- MCP  → `https://nal-api.onrender.com/mcp`
 
-### Deploying this branch
+`feature/fastapi-phase-1` remains a REST-only branch for its PR; it is not
+separately deployed. The single `nal-api` service runs the superset (this
+branch), so one URL covers everything.
 
-The existing `nal-api` service keeps tracking `feature/fastapi-phase-1`
-(unchanged). To put MCP live, deploy this branch as its own service:
+> To (re)create from scratch: Render dashboard → **New → Blueprint** → pick the
+> repo → select branch `feature/mcp-server`. It reads this `render.yaml` and
+> deploys the `nal-api` service.
 
-> Render dashboard → **New → Blueprint** → pick the repo → select branch
-> `feature/mcp-server`. It reads this `render.yaml` and creates `nal-api-mcp`.
-
-Once deployed, the public endpoints are:
-
-- REST → `https://nal-api-mcp.onrender.com/api/v1/...`
-- MCP  → `https://nal-api-mcp.onrender.com/mcp`
-
-When `feature/mcp-server` eventually merges to `main`, repoint a single service
-at `main` and retire the duplicate.
+When `feature/mcp-server` eventually merges to `main`, point `nal-api` at `main`.
 
 ### Caveats
 
@@ -200,11 +192,10 @@ at `main` and retire the duplicate.
   surface — same as the REST API. Fine for testing; lock down before real use.
 - **Cold starts.** Render's free plan spins down after ~15 min idle; the first
   request (REST or MCP) after that incurs a ~30s cold start.
-- **Free-tier limits.** Deploying this branch alongside the REST-only `nal-api`
-  means two free web services. Render allows this, but free instance-hours are
-  shared across your account.
+- **Free-tier limits.** `nal-api` runs on the free plan; free instance-hours are
+  shared across your Render account.
 - **Auto-deploy.** `autoDeploy: true` is set, so every push to
-  `feature/mcp-server` redeploys `nal-api-mcp` automatically.
+  `feature/mcp-server` redeploys `nal-api` automatically.
 - **Data refresh.** `data.yml` is read once at startup. After editing it, trigger
   a manual redeploy (or push) — a running instance won't pick up data changes on
   its own.
