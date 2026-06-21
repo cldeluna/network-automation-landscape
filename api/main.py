@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.mcp_server import mcp
-from api.routers import categories, naf, tools, use_cases
+from api.routers import admin, categories, naf, tools, use_cases
 from api.service import get_store
 
 # MCP served over Streamable HTTP. Inner path is "/"; we mount it at /mcp
@@ -46,6 +46,9 @@ app.include_router(tools.router, prefix="/api/v1")
 app.include_router(naf.router, prefix="/api/v1")
 app.include_router(use_cases.router, prefix="/api/v1")
 app.include_router(categories.router, prefix="/api/v1")
+
+# Self-service tool-submission web form (HTML). Opens PRs against data.yml.
+app.include_router(admin.router)
 
 # REST lives under /api/v1; MCP (Streamable HTTP) is mounted at /mcp.
 app.mount("/mcp", mcp_app)

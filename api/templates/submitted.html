@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Submission received{% endblock %}
+{% block body %}
+<h1>Submission received</h1>
+{% if configured %}
+<div class="ok">
+  <p><strong>Pull request opened</strong> for <code>{{ tool_name }}</code> ({{ action }}).</p>
+  <p><a href="{{ pr_url }}" target="_blank" rel="noopener">View PR #{{ pr_number }} on {{ repo }}</a></p>
+  <p class="sub">A maintainer will review and merge it. Once merged, the site rebuilds automatically.</p>
+</div>
+{% else %}
+<div class="errors">
+  <strong>PR creation is not configured</strong> (no <code>GH_TOKEN</code>).
+  This is a preview of the change that <em>would</em> be proposed to <code>{{ repo }}</code>.
+</div>
+<p>Files that would change: {% for f in files %}<code>{{ f }}</code>{{ ", " if not loop.last }}{% endfor %}</p>
+<h2>Proposed <code>data.yml</code> diff</h2>
+<pre>{{ preview }}</pre>
+{% endif %}
+<p><a href="/admin/tools/new">← Submit another</a></p>
+{% endblock %}

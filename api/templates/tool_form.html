@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if mode == "edit" else "Add" }} a tool{% endblock %}
+{% block body %}
+<h1>{{ "Edit" if mode == "edit" else "Add" }} a tool</h1>
+<p class="sub">Your submission opens a pull request against <code>data.yml</code>. A maintainer
+reviews and merges it — that review is the moderation step.</p>
+
+{% if errors %}
+<div class="errors">
+  <strong>Please fix the following:</strong>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" action="/admin/tools" enctype="multipart/form-data">
+  <input type="hidden" name="mode" value="{{ mode }}">
+  <input type="hidden" name="original_slug" value="{{ original_slug }}">
+
+  <fieldset>
+    <legend>Identity & placement</legend>
+    <label>Name *</label>
+    <input type="text" name="name" required value="{{ values.name or '' }}"
+           {{ 'readonly' if mode == 'edit' else '' }}>
+    {% if mode == 'edit' %}<div class="help">Name is the identity key; not editable here.</div>{% endif %}
+    <div class="row">
+      <div>
+        <label>Category *</label>
+        <select name="category" id="category" required>
+          <option value="">— select —</option>
+          {% for c in choices.categories.keys() %}
+          <option value="{{ c }}" {{ 'selected' if values.category == c else '' }}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Subcategory *</label>
+        <select name="subcategory" id="subcategory" required></select>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Core details</legend>
+    <label>Description</label>
+    <textarea name="description">{{ values.description or '' }}</textarea>
+    <div class="row">
+      <div><label>Homepage URL *</label><input type="url" name="homepage_url" required value="{{ values.homepage_url or '' }}"></div>
+      <div><label>Repository URL</label><input type="url" name="repo_url" value="{{ values.repo_url or '' }}"></div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Maturity / business model</label>
+        <select name="project">
+          <option value="">— select —</option>
+          {% for m in choices.maturities %}
+          <option value="{{ m }}" {{ 'selected' if values.project == m else '' }}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Logo filename *</label>
+        <input type="text" name="logo" required value="{{ values.logo or '' }}" placeholder="example.svg">
+        <div class="help">Required by landscape2. A file under <code>logos/</code>. Upload support is a later iteration.</div>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Crunchbase</label><input type="url" name="crunchbase" value="{{ values.crunchbase or '' }}"></div>
+      <div><label>Twitter</label><input type="url" name="twitter" value="{{ values.twitter or '' }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tags (extra.tag)</legend>
+    <div class="checks">
+      {% for t in choices.allowed_tags %}
+      <label><input type="checkbox" name="tags" value="{{ t }}"
+        {{ 'checked' if values.tags and t in values.tags else '' }}>{{ t }}</label>
+      {% endfor %}
+    </div>
+    <div class="help">First selected tag seeds the primary NAF component; the rest become secondary.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Summaries (optional)</legend>
+    {% for f in choices.summary_fields %}
+    <label>{{ f }}</label>
+    <input type="text" name="{{ f }}" value="{{ (values.summaries or {}).get(f, '') }}">
+    {% endfor %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Formal NAF mapping (sidecar override, optional)</legend>
+    <div class="row">
+      <div>
+        <label>Primary NAF component</label>
+        <select name="naf_component" id="naf_component">
+          <option value="">— infer from tags —</option>
+          {% for comp in choices.naf_taxonomy.keys() %}
+          <option value="{{ comp }}" {{ 'selected' if values.naf_component == comp else '' }}>{{ comp }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Sub-functions</label>
+        <div class="checks" id="naf_subfunctions"></div>
+      </div>
+    </div>
+    <label>Secondary NAF components</label>
+    <div class="checks">
+      {% for comp in choices.naf_taxonomy.keys() %}
+      <label><input type="checkbox" name="secondary_naf_components" value="{{ comp }}"
+        {{ 'checked' if values.secondary_naf_components and comp in values.secondary_naf_components else '' }}>{{ comp }}</label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Voluntary contacts (optional)</legend>
+    <div id="contacts">
+      {% set rows = values.contacts or [] %}
+      {% for i in range(3) %}
+      {% set c = rows[i] if i < rows|length else {} %}
+      <div class="contact-row">
+        <input type="text" name="contact_name" placeholder="name" value="{{ c.get('name','') }}">
+        <input type="text" name="contact_role" placeholder="role" value="{{ c.get('role','') or '' }}">
+        <input type="email" name="contact_email" placeholder="email" value="{{ c.get('email','') or '' }}">
+        <input type="text" name="contact_github" placeholder="github" value="{{ c.get('github','') or '' }}">
+      </div>
+      {% endfor %}
+    </div>
+    <div class="help">Opt-in only. Leave blank to omit.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Your details (for attribution on the PR) *</legend>
+    <div class="row">
+      <div><label>Your name *</label><input type="text" name="submitter_name" required value="{{ values.submitter_name or '' }}"></div>
+      <div><label>Your email *</label><input type="email" name="submitter_email" required value="{{ values.submitter_email or '' }}"></div>
+    </div>
+    {% if submit_token_required %}
+    <label>Submit token *</label>
+    <input type="text" name="submit_token" required>
+    <div class="help">This instance requires a shared submit token.</div>
+    {% endif %}
+  </fieldset>
+
+  <button type="submit">{{ "Submit edit" if mode == "edit" else "Submit new tool" }}</button>
+</form>
+
+<script>
+  const CATS = {{ choices.categories | tojson }};
+  const NAF = {{ choices.naf_taxonomy | tojson }};
+  const SELECTED_SUB = {{ (values.subcategory or '') | tojson }};
+  const SELECTED_SUBFNS = {{ (values.naf_subfunctions or []) | tojson }};
+
+  function fillSubcategories() {
+    const cat = document.getElementById('category').value;
+    const sub = document.getElementById('subcategory');
+    sub.innerHTML = '<option value="">— select —</option>';
+    (CATS[cat] || []).forEach(function (s) {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      if (s === SELECTED_SUB) o.selected = true;
+      sub.appendChild(o);
+    });
+  }
+  function fillSubfunctions() {
+    const comp = document.getElementById('naf_component').value;
+    const box = document.getElementById('naf_subfunctions');
+    box.innerHTML = '';
+    (NAF[comp] || []).forEach(function (fn) {
+      const id = 'sf_' + fn.replace(/\W+/g, '_');
+      const l = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.name = 'naf_subfunctions'; cb.value = fn;
+      if (SELECTED_SUBFNS.indexOf(fn) !== -1) cb.checked = true;
+      l.appendChild(cb); l.appendChild(document.createTextNode(' ' + fn));
+      box.appendChild(l);
+    });
+  }
+  document.getElementById('category').addEventListener('change', fillSubcategories);
+  document.getElementById('naf_component').addEventListener('change', fillSubfunctions);
+  fillSubcategories();
+  fillSubfunctions();
+</script>
+{% endblock %}
