@@ -93,3 +93,11 @@ def upsert_sidecar(doc, slug: str, fragment: dict) -> None:
             bucket = {}
             doc["naf_mappings"] = bucket
         bucket[slug] = naf_mapping
+
+    logo_url = fragment.get("logo_url")
+    if logo_url:
+        bucket = doc.get("logo_urls")
+        if not isinstance(bucket, dict):
+            bucket = {}
+            doc["logo_urls"] = bucket
+        bucket[slug] = logo_url

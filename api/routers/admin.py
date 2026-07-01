@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
-from api.admin import github_pr, schema_validate
+from api.admin import github_pr, logo, schema_validate
 from api.admin import yaml_editor as ye
 from api.admin.forms import (
     ALLOWED_TAGS,
@@ -81,6 +81,7 @@ def _prefill(slug: str) -> dict | None:
     sidecar = load_extended_data()
     contacts = (sidecar.get("contacts") or {}).get(slug, [])
     mapping = (sidecar.get("naf_mappings") or {}).get(slug, {})
+    logo_url = (sidecar.get("logo_urls") or {}).get(slug, "")
 
     return {
         "name": item.get("name", ""),
@@ -90,6 +91,7 @@ def _prefill(slug: str) -> dict | None:
         "homepage_url": item.get("homepage_url", ""),
         "repo_url": item.get("repo_url", ""),
         "logo": item.get("logo", ""),
+        "logo_url": logo_url,
         "project": item.get("project", ""),
         "crunchbase": item.get("crunchbase", ""),
         "twitter": item.get("twitter", ""),
@@ -169,6 +171,7 @@ def _parse_form(form) -> dict:
         "homepage_url": (get("homepage_url") or "").strip() or None,
         "repo_url": (get("repo_url") or "").strip() or None,
         "logo": (get("logo") or "").strip() or None,
+        "logo_url": (get("logo_url") or "").strip() or None,
         "project": (get("project") or "").strip() or None,
         "crunchbase": (get("crunchbase") or "").strip() or None,
         "twitter": (get("twitter") or "").strip() or None,
@@ -212,6 +215,23 @@ async def submit_tool(request: Request) -> HTMLResponse:
             errors=["Invalid or missing submit token."],
             original_slug=original_slug,
         )
+
+    # A logo upload (if present) is validated/sanitized and becomes the item's
+    # logo filename. The slug (from the name) keys the committed logos/ file.
+    slug = _slugify(raw["name"]) if raw["name"] else ""
+    binary_files: dict[str, bytes] = {}
+    upload = form.get("logo_file")
+    if upload is not None and getattr(upload, "filename", ""):
+        if not slug:
+            return _render_form(request, mode=mode, values=raw, errors=["Enter a tool name before uploading a logo."], original_slug=original_slug)
+        try:
+            logo_name, cleaned = logo.process_upload(slug, upload.filename, await upload.read())
+        except logo.LogoError as exc:
+            return _render_form(request, mode=mode, values=raw, errors=[f"Logo: {exc}"], original_slug=original_slug)
+        raw["logo"] = logo_name
+        binary_files[f"logos/{logo_name}"] = cleaned
+    if not raw.get("logo"):
+        return _render_form(request, mode=mode, values=raw, errors=["A logo is required: upload an SVG/PNG/JPG, or enter an existing logos/ filename."], original_slug=original_slug)
 
     # 1. Validate the submission against the controlled vocabularies.
     try:
@@ -269,14 +289,14 @@ async def submit_tool(request: Request) -> HTMLResponse:
                 "tool_name": tool.name,
                 "repo": cfg.repo,
                 "preview": new_data_text_diff_preview(data_text, new_data_text),
-                "files": list(files),
+                "files": list(files) + list(binary_files),
             },
         )
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     branch = f"submit/{slug}-{timestamp}"
     try:
-        pr = github_pr.open_pr(cfg, branch=branch, title=title, body=body, text_files=files)
+        pr = github_pr.open_pr(cfg, branch=branch, title=title, body=body, text_files=files, binary_files=binary_files)
     except github_pr.GitHubError as exc:
         return _render_form(request, mode=mode, values=raw, errors=[f"PR creation failed: {exc}"], original_slug=original_slug)
 

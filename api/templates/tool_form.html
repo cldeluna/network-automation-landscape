@@ -58,11 +58,19 @@ reviews and merges it — that review is the moderation step.</p>
         </select>
       </div>
       <div>
-        <label>Logo filename *</label>
-        <input type="text" name="logo" required value="{{ values.logo or '' }}" placeholder="example.svg">
-        <div class="help">Required by landscape2. A file under <code>logos/</code>. Upload support is a later iteration.</div>
+        <label>Logo *</label>
+        <input type="file" name="logo_file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg">
+        <div class="help">Upload an <strong>SVG, PNG, or JPG</strong> (max 512&nbsp;KB). SVGs are
+          sanitized; rasters are re-encoded. It's committed to <code>logos/</code> and renders in the site.</div>
+        <label>…or existing logo filename</label>
+        <input type="text" name="logo" value="{{ values.logo or '' }}" placeholder="example.svg">
+        <div class="help">Use this instead of an upload to reference a file already in <code>logos/</code>.</div>
       </div>
     </div>
+    <label>Logo URL (optional)</label>
+    <input type="url" name="logo_url" value="{{ values.logo_url or '' }}" placeholder="https://example.com/logo.svg">
+    <div class="help">Stored as-is for API/UI use. <strong>Not</strong> fetched and not rendered in the static
+      landscape (which needs the local file above).</div>
     <div class="row">
       <div><label>Crunchbase</label><input type="url" name="crunchbase" value="{{ values.crunchbase or '' }}"></div>
       <div><label>Twitter</label><input type="url" name="twitter" value="{{ values.twitter or '' }}"></div>

@@ -32,3 +32,8 @@ naf_mappings:
   # as a secondary NAF component.
   suzieq:
     secondary_naf_components: [collector]
+
+# Map of tool slug -> off-site logo URL. Stored as-is (not fetched) and NOT used
+# by the static landscape2 build, which needs a local file under logos/. Exposed
+# via the API (Tool.logo_url) for UI consumers. Set by the submission form.
+logo_urls: {}

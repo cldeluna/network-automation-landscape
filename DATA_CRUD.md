@@ -64,9 +64,13 @@ server at `/mcp` are unchanged.
   ~2,300 lines of comments, ordering, and the `# yaml-language-server` hint.
 - `schema_validate.py` — `jsonschema` validation of the full proposed `data.yml` against
   `schemas/landscape2-data-schema.json` (the same schema `landscape2 validate data` uses).
-- `github_pr.py` — opens a PR via the GitHub REST API (branch → blobs → tree → commit → PR).
-  Reads `GH_TOKEN` from env; graceful no-token degradation; **hard guard** against the
-  upstream repo.
+- `github_pr.py` — opens a PR via the GitHub REST API (branch → blobs → tree → commit → PR),
+  including binary blobs (logo files). Reads `GH_TOKEN` from env; graceful no-token
+  degradation; **hard guard** against the upstream repo.
+- `logo.py` — validates/sanitizes an uploaded logo before it's committed to `logos/`:
+  SVG is sanitized (allowlist elements, strip scripts/handlers/external refs, reject
+  DTD/XXE); PNG/JPG are verified and re-encoded (magic-byte check, dimension cap, metadata
+  strip). 512 KB / 2000 px limits. See §7.
 
 **New — router & templates:**
 - `api/routers/admin.py` — the three routes; form parsing, placement/identity checks, PR vs.
@@ -80,9 +84,12 @@ server at `/mcp` are unchanged.
 - `DATA_CRUD.md` — this file.
 
 **Changed:**
-- `pyproject.toml` — added `ruamel.yaml`, `jsonschema`, `jinja2`, `python-multipart`; promoted
-  `httpx` from dev to runtime.
+- `pyproject.toml` — added `ruamel.yaml`, `jsonschema`, `jinja2`, `python-multipart`,
+  `pillow`, `defusedxml`; promoted `httpx` from dev to runtime.
 - `api/main.py` — mounts `admin.router`.
+- `api/models.py` — `Tool` gains `logo_url` (off-site URL from the sidecar).
+- `api/loader.py` — reads the `logo_urls` sidecar map onto `Tool.logo_url`.
+- `api/data/extended_data.yml` — new `logo_urls` map (slug → URL).
 
 > Note: this branch also carries the earlier change that surfaces formal NAF mapping
 > (`secondary_naf_components`) and records `collector` as SuzieQ's secondary component.
@@ -98,6 +105,28 @@ server at `/mcp` are unchanged.
 | `naf_component` / `secondary_naf_components` | the 7 NAF components |
 | `naf_subfunctions` | must belong to the chosen `naf_component` (per `NAF_TAXONOMY`) |
 | Required (schema) | `name`, `homepage_url`, `logo` |
+
+### Logo handling
+
+landscape2 renders a logo only from a **local file in `logos/`** referenced by filename
+(no URL support, SVG preferred). The form offers three inputs:
+
+| Input | What happens |
+|-------|--------------|
+| **Upload** (`.svg` / `.png` / `.jpg`) | Validated + cleaned, then committed to `logos/<slug>.<ext>` and set as the item's `logo`. **Required unless** you give an existing filename. |
+| **Existing filename** | Reference a file already in `logos/` (e.g. `suzieq.png`). |
+| **Logo URL** (optional) | Stored as-is in the sidecar `logo_urls` map and exposed as `Tool.logo_url`. **Not fetched, not rendered** in the static site. |
+
+**Upload safety** (these files are served on the project's own GitHub Pages origin, so they're
+treated as untrusted — `api/admin/logo.py`):
+- **SVG:** parsed with `defusedxml` (DTD/entities/external refs rejected → no XXE), reduced to
+  an allowlist of drawing elements, with `<script>`, `on*` handlers, `<foreignObject>`,
+  external `href`/`use`, and `javascript:`/CSS-`url()` stripped, then re-serialized.
+- **PNG/JPG:** verified to actually decode as the claimed format (magic bytes, not just the
+  extension), dimension-capped (≤ 2000 px; guards decompression bombs), and re-encoded to strip
+  metadata.
+- **Limits:** 512 KB max. GIF/other types are rejected. The maintainer's PR review is a
+  backstop, not the primary control.
 
 ---
 
@@ -144,7 +173,7 @@ Covered by `test_admin.py::test_upstream_pr_guard` and `::test_pr_path_mocked`
 # 1. Install deps
 uv sync
 
-# 2. Run the unit tests (31 total: existing + 13 new admin tests)
+# 2. Run the unit tests (40 total: existing + admin form + logo tests)
 uv run pytest api/tests/ -q
 
 # 3. Run the app
@@ -153,8 +182,9 @@ uv run uvicorn api.main:app --reload
 
 ### A) Preview mode (no token — safe, opens nothing)
 1. Open <http://127.0.0.1:8000/admin/tools/new>.
-2. Fill the form (Name, Category→Subcategory, Homepage URL, Logo filename are required;
-   pick a Maturity, tags, optionally NAF mapping + contacts; add your name/email).
+2. Fill the form (Name, Category→Subcategory, Homepage URL are required; **upload a logo**
+   SVG/PNG/JPG — or give an existing `logos/` filename; pick a Maturity, tags, optionally a
+   logo URL, NAF mapping + contacts; add your name/email).
 3. Submit → the **confirmation page shows the exact `data.yml` diff** that *would* be proposed,
    with a "PR creation is not configured" notice. Nothing is sent to GitHub.
 4. Try invalid input (e.g. an off-vocab tag, a subcategory from the wrong category, or omit the
@@ -203,10 +233,9 @@ MCP + (now) the admin form from one process.
 
 ## 9. Known limitations / future work
 
-- **Logo upload** is not wired yet: the form takes a logo *filename* expected to already exist
-  under `logos/`. Adding the binary to the same PR (multipart upload → git blob) is the planned
-  next iteration; `python-multipart` is already installed and `github_pr.open_pr` accepts
-  `binary_files`.
+- **Logo upload is implemented** (SVG/PNG/JPG, sanitized/validated, committed to `logos/` in the
+  PR). Possible future polish: SVG raster fallback, richer image-format support, or fetching a
+  provided logo URL into a local file (currently the URL is stored as-is, not fetched, by design).
 - **Anti-abuse** is light (required submitter email + optional `SUBMIT_TOKEN`). For a fully
   public deployment, add rate limiting / CAPTCHA.
 - **Phase 2 (Dolt)** — a versioned SQL datastore with true CRUD/audit — remains the separate,

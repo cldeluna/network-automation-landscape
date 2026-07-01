@@ -74,6 +74,9 @@ class ToolForm(BaseModel):
     # (required: [name, homepage_url, logo]); enforce them up front.
     homepage_url: str = Field(min_length=1)
     logo: str = Field(min_length=1)  # filename under logos/ (or set by an upload)
+    # Optional off-site logo URL: stored as-is in the sidecar, not fetched and
+    # not used by the static build. Surfaced via the API for later UI use.
+    logo_url: str | None = None
     description: str | None = None
     repo_url: str | None = None
     project: Maturity | None = None
@@ -113,6 +116,13 @@ class ToolForm(BaseModel):
             raise ValueError(
                 f"Unknown NAF component(s) {bad}. Allowed: {', '.join(NAF_TAXONOMY)}"
             )
+        return v
+
+    @field_validator("logo_url")
+    @classmethod
+    def _validate_logo_url(cls, v: str | None) -> str | None:
+        if v and not v.lower().startswith(("http://", "https://")):
+            raise ValueError("logo_url must be an http(s) URL.")
         return v
 
     @field_validator("summaries")
@@ -177,6 +187,8 @@ class ToolForm(BaseModel):
             out["contacts"] = [
                 c.model_dump(exclude_none=True) for c in self.contacts
             ]
+        if self.logo_url:
+            out["logo_url"] = self.logo_url
         mapping: dict = {}
         if self.naf_component:
             mapping["naf_component"] = self.naf_component

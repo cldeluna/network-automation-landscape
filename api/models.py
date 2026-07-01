@@ -66,7 +66,10 @@ class Tool(BaseModel):
     homepage_url: str | None = None
     repo_url: str | None = None
     project: str | None = None
-    logo: str | None = None
+    logo: str | None = None  # filename under logos/ (renders in the static site)
+    # Optional off-site logo URL from the sidecar. Not used by the static
+    # landscape2 build (which needs a local file); exposed for API/UI consumers.
+    logo_url: str | None = None
     tags: list[str] = []
     # Formal NAF classification. Derived from ``tags`` (first tag = primary,
     # the rest = secondary), with per-tool overrides from the sidecar

@@ -5,13 +5,31 @@ rejection, the no-token preview path, and the PR path with GitHub calls mocked
 (no real network). Also asserts the upstream-PR guard.
 """
 
-import yaml
+import io
 
-from api.admin import github_pr
+import yaml
+from PIL import Image
+
+from api.admin import github_pr, logo
 from api.admin import yaml_editor as ye
 from api.admin.forms import ToolForm
 from api.admin.schema_validate import validate_landscape
 from api.loader import DATA_YML, EXTENDED_DATA_YML
+
+
+def _png_bytes(w=48, h=48) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGBA", (w, h), (0, 150, 255, 255)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+EVIL_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)" width="10" height="10">'
+    b"<script>alert(document.cookie)</script>"
+    b'<foreignObject><b>x</b></foreignObject>'
+    b'<image href="https://evil.example/x.png"/>'
+    b'<path d="M0 0 L5 5" fill="#09f"/></svg>'
+)
 
 VALID = {
     "mode": "new",
@@ -135,6 +153,7 @@ def test_pr_path_mocked(client, monkeypatch):
         captured["repo"] = cfg.repo
         captured["branch"] = branch
         captured["files"] = list(text_files)
+        captured["binary"] = list(binary_files or {})
         captured["body"] = body
         return {"html_url": "https://github.com/cldeluna/x/pull/42", "number": 42}
 
@@ -169,3 +188,94 @@ def test_upstream_pr_guard(monkeypatch):
     except github_pr.GitHubError as exc:
         raised = "upstream" in str(exc).lower()
     assert raised
+
+
+# --- logo handling ----------------------------------------------------------
+
+
+def test_svg_sanitized():
+    name, clean = logo.process_upload("acme-probe", "logo.svg", EVIL_SVG)
+    text = clean.decode()
+    assert name == "acme-probe.svg"
+    assert "<script" not in text and "script>" not in text
+    assert "onload" not in text
+    assert "foreignobject" not in text.lower()
+    assert "evil.example" not in text
+    assert "M0 0 L5 5" in text  # legit path preserved
+
+
+def test_svg_dtd_rejected():
+    payload = b'<!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg"/>'
+    try:
+        logo.sanitize_svg(payload)
+        raised = False
+    except logo.LogoError:
+        raised = True
+    assert raised
+
+
+def test_raster_validated_and_fake_rejected():
+    name, clean = logo.process_upload("acme-probe", "logo.png", _png_bytes())
+    assert name == "acme-probe.png" and len(clean) > 0
+    try:
+        logo.process_upload("x", "fake.png", b"not a png")
+        raised = False
+    except logo.LogoError:
+        raised = True
+    assert raised
+
+
+def test_unsupported_logo_type_rejected():
+    try:
+        logo.process_upload("x", "evil.gif", b"GIF89a")
+        raised = False
+    except logo.LogoError:
+        raised = True
+    assert raised
+
+
+def test_missing_logo_rejected_no_file(client):
+    data = {k: v for k, v in VALID.items() if k != "logo"}
+    r = client.post("/admin/tools", data=data)
+    assert "logo is required" in r.text.lower()
+
+
+def test_upload_commits_logo_binary(client, monkeypatch):
+    captured = {}
+
+    def fake_open_pr(cfg, *, branch, title, body, text_files, binary_files=None):
+        captured["files"] = list(text_files)
+        captured["binary"] = list(binary_files or {})
+        return {"html_url": "https://github.com/cldeluna/x/pull/7", "number": 7}
+
+    monkeypatch.setenv("GH_TOKEN", "fake-token")
+    monkeypatch.setattr(github_pr, "open_pr", fake_open_pr)
+
+    data = {k: v for k, v in VALID.items() if k != "logo"}  # no filename; use upload
+    files = {"logo_file": ("logo.svg", EVIL_SVG, "image/svg+xml")}
+    r = client.post("/admin/tools", data=data, files=files)
+    assert r.status_code == 200
+    assert "Pull request opened" in r.text
+    # The sanitized logo is committed under logos/<slug>.svg.
+    assert "logos/acme-probe.svg" in captured["binary"]
+
+
+def test_logo_url_stored_in_sidecar():
+    frag = ToolForm(**{**VALID, "logo_url": "https://cdn.example/acme.svg"}).to_sidecar()
+    assert frag["logo_url"] == "https://cdn.example/acme.svg"
+    doc = ye.load_doc(EXTENDED_DATA_YML.read_text())
+    ye.upsert_sidecar(doc, "acme-probe", frag)
+    out = ye.dump_doc(doc)
+    assert "logo_urls" in out and "cdn.example" in out
+
+
+def test_bad_logo_url_rejected(client):
+    r = client.post("/admin/tools", data={**VALID, "logo_url": "ftp://nope"})
+    assert "logo_url" in r.text
+
+
+def test_tool_exposes_logo_url_field(client):
+    # Field is present on the API surface (null for tools without one).
+    r = client.get("/api/v1/tools/suzieq")
+    assert r.status_code == 200
+    assert "logo_url" in r.json()

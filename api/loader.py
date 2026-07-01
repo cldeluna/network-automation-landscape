@@ -23,7 +23,7 @@ def load_landscape() -> dict[str, Any]:
 
 
 def load_extended_data() -> dict[str, Any]:
-    default = {"contacts": {}, "use_cases": [], "naf_mappings": {}}
+    default = {"contacts": {}, "use_cases": [], "naf_mappings": {}, "logo_urls": {}}
     if not EXTENDED_DATA_YML.exists():
         return default
     with EXTENDED_DATA_YML.open() as f:
@@ -32,7 +32,9 @@ def load_extended_data() -> dict[str, Any]:
 
 def build_tools_index() -> dict[str, Tool]:
     landscape = load_landscape()
-    naf_mappings = load_extended_data().get("naf_mappings") or {}
+    extended = load_extended_data()
+    naf_mappings = extended.get("naf_mappings") or {}
+    logo_urls = extended.get("logo_urls") or {}
     index: dict[str, Tool] = {}
     for cat in landscape.get("categories", []):
         cat_name = cat["name"]
@@ -64,6 +66,7 @@ def build_tools_index() -> dict[str, Tool]:
                     repo_url=item.get("repo_url"),
                     project=item.get("project"),
                     logo=item.get("logo"),
+                    logo_url=logo_urls.get(slug),
                     tags=tags,
                     naf_component=naf_component,
                     naf_subfunctions=naf_subfunctions,
